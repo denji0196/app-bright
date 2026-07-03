@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>OK/NG Inspector v16</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --border:#2a2f3a;
+    --text:#e8eaed; --muted:#9aa3b2; --accent:#4f8cff; --ok:#2fbf71; --ng:#ef4444; --warn:#f5a524;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background:var(--bg); color:var(--text); padding:24px;
+  }
+  .wrap{max-width:1100px; margin:0 auto;}
+  h1{font-size:20px; margin:0 0 4px;}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:18px;}
+  .panel{
+    background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:18px; margin-bottom:16px;
+  }
+  .drop{
+    border:2px dashed var(--border); border-radius:12px; padding:26px; text-align:center;
+    cursor:pointer; transition:.15s; background:var(--panel2);
+  }
+  .drop:hover{border-color:var(--accent); background:#20242e;}
+  .drop.drag{border-color:var(--accent); background:#20283a;}
+  .drop p{margin:6px 0; color:var(--muted); font-size:13px;}
+  .drop .big{font-size:14px; color:var(--text);}
+  input[type=file]{display:none;}
+  .upload-btns{display:flex; gap:10px; justify-content:center; margin-top:14px; flex-wrap:wrap;}
+  .upload-btn{
+    background:var(--panel); border:1px solid var(--border); color:var(--text);
+    padding:8px 14px; border-radius:9px; font-size:12.5px; cursor:pointer;
+  }
+  .upload-btn:hover{border-color:var(--accent);}
+
+  .progress-wrap{margin-top:14px; display:none;}
+  .progress-wrap.show{display:block;}
+  .progress-track{height:6px; background:#20242e; border-radius:3px; overflow:hidden;}
+  .progress-fill{height:100%; background:var(--accent); width:0%; transition:width .1s;}
+  .progress-text{font-size:11px; color:var(--muted); margin-top:6px;}
+
+  .stage{display:flex; gap:18px; flex-wrap:wrap;}
+  .canvas-box{flex:0 0 auto;}
+  canvas#canvas{width:256px; height:256px; border-radius:10px; background:#000; display:block; border:1px solid var(--border);}
+  .zoom-label{font-size:11px; color:var(--muted); margin:8px 0 4px;}
+  .zoom-pair{display:flex; gap:10px;}
+  .zoom-item{text-align:center;}
+  .zoom-item canvas{width:120px; height:24px; border-radius:6px; background:#000; display:block; border:1px solid var(--border); image-rendering:pixelated;}
+  .zoom-item span{font-size:10px; color:var(--muted);}
+  .zoom-item.active-zoom canvas{border-color:#f5a524; border-width:2px;}
+  .zoom-item.active-zoom span{color:#f5a524; font-weight:700;}
+  .side-detail{font-size:11px; color:var(--muted); margin-top:8px;}
+  .rot-tag{font-size:9px; background:rgba(245,165,36,.15); color:var(--warn); padding:1px 5px; border-radius:5px; font-weight:700;}
+  .result-box{flex:1 1 320px; min-width:280px;}
+  .status{font-size:12px; color:var(--muted); margin-bottom:10px; min-height:16px;}
+  .filename-tag{font-size:11px; color:var(--muted); margin-bottom:8px; word-break:break-all;}
+  .primary-card{
+    border-radius:14px; padding:20px; border:1.5px solid var(--border); background:var(--panel2); margin-bottom:14px;
+  }
+  .primary-card.ok{border-color:var(--ok); background:linear-gradient(135deg, rgba(47,191,113,.10), var(--panel2));}
+  .primary-card.ng{border-color:var(--ng); background:linear-gradient(135deg, rgba(239,68,68,.10), var(--panel2));}
+  .badge{
+    display:inline-block; padding:4px 14px; border-radius:999px; font-weight:800; font-size:16px; letter-spacing:.5px;
+  }
+  .badge.ok{background:rgba(47,191,113,.18); color:var(--ok);}
+  .badge.ng{background:rgba(239,68,68,.18); color:var(--ng);}
+  .badge.sm{font-size:11px; padding:3px 10px; font-weight:700; letter-spacing:0;}
+  .measured{font-size:12px; color:var(--muted); margin-top:10px;}
+  .measured b{color:var(--text); font-size:14px;}
+  .gauge{position:relative; height:34px; margin-top:14px; background:#20242e; border-radius:8px; overflow:hidden;}
+  .gauge-ok-zone{position:absolute; top:0; bottom:0; left:0; background:rgba(47,191,113,.18);}
+  .gauge-ng-zone{position:absolute; top:0; bottom:0; right:0; background:rgba(239,68,68,.18);}
+  .gauge-fill{position:absolute; top:0; bottom:0; width:3px; background:#fff; box-shadow:0 0 8px #fff;}
+  .gauge-threshold{position:absolute; top:0; bottom:0; width:1px; background:var(--accent); opacity:.8;}
+  .gauge-labels{display:flex; justify-content:space-between; font-size:10px; color:var(--muted); margin-top:4px;}
+
+  /* Summary bar with filter chips */
+  .summary-bar{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; margin-bottom:2px;
+  }
+  .chip{
+    display:flex; align-items:center; gap:6px; padding:7px 14px; border-radius:9px; cursor:pointer;
+    background:var(--panel2); border:1px solid var(--border); color:var(--muted); font-size:13px; user-select:none;
+  }
+  .chip b{color:var(--text); font-weight:700;}
+  .chip.ng{color:#f5a3a3;}
+  .chip.ng b{color:var(--ng);}
+  .chip.ok{color:#a3e0bc;}
+  .chip.ok b{color:var(--ok);}
+  .chip.active{border-color:var(--accent); background:#20283a;}
+  .small-select, .search-input{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:8px 12px; border-radius:9px; font-size:12.5px;
+  }
+  .search-input{flex:1; min-width:160px;}
+  .search-input::placeholder{color:var(--muted);}
+  .summary-actions{display:flex; gap:8px; margin-left:auto; flex-wrap:wrap;}
+  .small-btn{
+    background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    padding:8px 12px; border-radius:9px; font-size:12px; cursor:pointer;
+  }
+  .small-btn:hover{border-color:var(--accent);}
+
+  /* List rows */
+  .list{margin-top:14px; max-height:560px; overflow-y:auto; border-radius:10px;}
+  .row{
+    display:flex; align-items:center; gap:14px; padding:10px 12px; border-radius:10px;
+    background:var(--panel2); border:1px solid transparent; margin-bottom:6px; cursor:pointer;
+    content-visibility:auto; contain-intrinsic-size:64px;
+  }
+  .row:hover{border-color:var(--border);}
+  .row.selected{border-color:var(--accent); background:#1c2434;}
+  .row.ng{box-shadow:inset 3px 0 0 var(--ng);}
+  .row.ok{box-shadow:inset 3px 0 0 var(--ok);}
+  .row-icon{width:40px; height:40px; border-radius:8px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800;}
+  .row-icon.ok{background:rgba(47,191,113,.14); color:var(--ok);}
+  .row-icon.ng{background:rgba(239,68,68,.14); color:var(--ng);}
+  .row-text{flex:1; min-width:0;}
+  .row-path{font-size:10.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .row-name{font-size:12.5px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .row-right{flex:0 0 160px; text-align:right;}
+  .row-bar-track{height:5px; background:#2a2f3a; border-radius:3px; overflow:hidden; margin-top:6px;}
+  .row-bar-fill{height:100%; border-radius:3px;}
+  .row-bar-fill.ok{background:var(--ok);}
+  .row-bar-fill.ng{background:var(--ng);}
+  .empty-note{padding:24px; text-align:center; color:var(--muted); font-size:13px;}
+
+  .fail-btn{border-color:rgba(245,165,36,.5); color:var(--warn);}
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center;
+    z-index:1000; padding:20px;
+  }
+  .modal-box{
+    background:var(--panel); border:1px solid var(--border); border-radius:14px; width:100%; max-width:700px;
+    max-height:80vh; display:flex; flex-direction:column; overflow:hidden;
+  }
+  .modal-header{
+    display:flex; justify-content:space-between; align-items:center; padding:16px 18px; border-bottom:1px solid var(--border);
+    font-size:14px; font-weight:700; color:var(--warn);
+  }
+  .fail-summary{padding:12px 18px; border-bottom:1px solid var(--border); max-height:150px; overflow-y:auto;}
+  .fail-summary-row{display:flex; justify-content:space-between; font-size:12px; color:var(--muted); padding:4px 0;}
+  .fail-summary-row b{color:var(--ng);}
+  .fail-list{padding:8px 18px; overflow-y:auto; flex:1;}
+  .fail-row{display:flex; flex-direction:column; gap:2px; padding:6px 0; border-bottom:1px solid var(--border); font-size:11px;}
+  .fail-name{color:var(--text); word-break:break-all;}
+  .fail-err{color:var(--ng); font-size:10.5px;}
+  .modal-footer{padding:14px 18px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;}
+
+  footer{color:var(--muted); font-size:11px; text-align:center; margin-top:24px; line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔍 OK / NG Inspector v6</h1>
+  <div class="sub">รันทั้งหมดในเบราว์เซอร์ของคุณ — ไม่มีการส่งภาพขึ้นเซิร์ฟเวอร์ใดๆ · ปรับความเร็วสำหรับไฟล์จำนวนมาก</div>
+
+  <div class="panel">
+    <div id="drop" class="drop">
+      <div class="big">📤 ลากไฟล์หลายไฟล์ หรือทั้งโฟลเดอร์มาวางที่นี่</div>
+      <p>รองรับ .jpg .png .bmp — เลือกได้ทีละไฟล์ หลายไฟล์พร้อมกัน หรือทั้งโฟลเดอร์ (รวมโฟลเดอร์ย่อย)</p>
+      <div class="upload-btns" onclick="event.stopPropagation()">
+        <button class="upload-btn" id="btnFiles">📄 เลือกไฟล์ (หลายไฟล์ได้)</button>
+        <button class="upload-btn" id="btnFolder">📁 เลือกทั้งโฟลเดอร์</button>
+      </div>
+      <input id="fileInput" type="file" accept="image/*" multiple>
+      <input id="folderInput" type="file" webkitdirectory directory multiple>
+    </div>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-text" id="progressText"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="detailPanel" style="display:none;">
+    <div class="stage">
+      <div class="canvas-box">
+        <canvas id="canvas" width="256" height="256"></canvas>
+        <div class="zoom-label">🔍 ซูมตำแหน่งตรวจ ×8 (กรอบส้มเข้ม = ฝั่งที่ใช้ตัดสิน)</div>
+        <div class="zoom-pair">
+          <div class="zoom-item">
+            <canvas id="zoomCanvasL" width="39" height="8"></canvas>
+            <span>ซ้าย</span>
+          </div>
+          <div class="zoom-item">
+            <canvas id="zoomCanvasR" width="39" height="8"></canvas>
+            <span>ขวา</span>
+          </div>
+        </div>
+      </div>
+      <div class="result-box">
+        <div class="filename-tag" id="filenameTag"></div>
+        <div class="status" id="status"></div>
+        <div id="primaryArea"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="batchPanel" style="display:none;">
+    <div class="summary-bar" id="summaryBar"></div>
+    <div class="list" id="grid"></div>
+  </div>
+
+  <footer>
+    Rule-based check: dark-pixel fraction @ ROI ซ้าย(48,127)-(87,135) และขวา(169,127)-(208,135) แบบ mirror รอบจุดกึ่งกลาง — ใช้ฝั่งที่เปิดกว่า, threshold 51.45% (รองรับชิ้นงานหมุน) · ยืนยันตำแหน่งจุดบกพร่องแล้วโดยผู้ใช้งาน · ข้อมูลไม่ถูกส่งออกจากเครื่องคุณ
+  </footer>
+</div>
+<script>
+const INPUT_SIZE = 256; // reference frame size that ROI coordinates were calibrated against
+
+const ROI_L = { x0: 48, y0: 127, x1: 87, y1: 135 };
+const ROI_R = { x0: 169, y0: 127, x1: 208, y1: 135 }; // mirrored around circle center (cx=128): rotated parts can show the gap on this side instead
+const ROI_W = ROI_L.x1 - ROI_L.x0, ROI_H = ROI_L.y1 - ROI_L.y0; // 39 x 8, same size both sides
+const DARK_THRESHOLD = 60;
+const FRACTION_THRESHOLD = 0.5145; // recalibrated for the two-sided (min of left/right) check
+const CONCURRENCY = 20; // pulled back down — concurrency=80 caused 49.5% failures AND was slower per successful image than 24 (see analysis), so higher isn't better here
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const zoomCanvasL = document.getElementById('zoomCanvasL');
+const zctxL = zoomCanvasL.getContext('2d');
+const zoomCanvasR = document.getElementById('zoomCanvasR');
+const zctxR = zoomCanvasR.getContext('2d');
+const statusEl = document.getElementById('status');
+const filenameTag = document.getElementById('filenameTag');
+const primaryArea = document.getElementById('primaryArea');
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('fileInput');
+const folderInput = document.getElementById('folderInput');
+const btnFiles = document.getElementById('btnFiles');
+const btnFolder = document.getElementById('btnFolder');
+const detailPanel = document.getElementById('detailPanel');
+const batchPanel = document.getElementById('batchPanel');
+const summaryBar = document.getElementById('summaryBar');
+const grid = document.getElementById('grid'); // list container
+const progressWrap = document.getElementById('progressWrap');
+const progressFill = document.getElementById('progressFill');
+const progressText = document.getElementById('progressText');
+
+// reusable tiny offscreen canvas holding BOTH ROI crops side-by-side — lets us read both with
+// a single getImageData call instead of two (getImageData is the expensive part, not drawImage)
+const scanCanvas = document.createElement('canvas');
+scanCanvas.width = ROI_W * 2; scanCanvas.height = ROI_H;
+const sctx = scanCanvas.getContext('2d', { willReadFrequently: true });
+
+let items = [];        // {id, name, relPath, file|dataUrl, fraction, fractionL, fractionR, side, isNG}
+let failedItems = [];  // {name, relPath, error} — files that failed even after retries
+let selectedId = null;
+let nextId = 1;
+let filterMode = '';   // '', 'ng', 'ok'
+let folderFilter = '';
+let searchTerm = '';
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- fast dual-ROI scan: 2 tiny drawImage crops + ONE getImageData + one combined loop ----------
+// ---------- FAST PATH: read raw BMP bytes directly, no Image decode / no Canvas at all ----------
+// Verified format for this vision system's output: uncompressed 8bpp BMP with a linear grayscale
+// palette (palette index N == gray value N), consistent across every file/session checked.
+// Returns null (caller falls back to the canvas path) if a file doesn't match this exact shape,
+// so PNG/JPG and any unexpected BMP variant still work correctly, just without the fast path.
+let totalReadMs = 0, totalComputeMs = 0, timedCount = 0;
+
+async function computeFractionFastBMP(file) {
+  if (!file.name.toLowerCase().endsWith('.bmp')) return null;
+  const tRead0 = performance.now();
+
+  // ONE read instead of two. Per-call overhead in this sandboxed environment turned out to
+  // dominate completely (~1474ms average for 2 calls, ~0.01ms compute) — far more than the few
+  // KB being transferred should ever cost. So instead of a separate header-only read followed by
+  // a targeted pixel-row read, grab a single generous slice from byte 0 that's known to cover
+  // header+palette+the needed rows for this system's standard 256x256 8bpp output, and validate
+  // everything from that one buffer. Falls back to canvas decode if the guess doesn't hold.
+  const GUESS_END = 40000;
+  let buf;
+  try { buf = await file.slice(0, GUESS_END).arrayBuffer(); } catch { return null; }
+  if (buf.byteLength < 1078) return null;
+  const hv = new DataView(buf);
+  if (hv.getUint8(0) !== 0x42 || hv.getUint8(1) !== 0x4D) return null; // 'BM'
+  const pixelOffset = hv.getUint32(10, true);
+  const dibSize = hv.getUint32(14, true);
+  if (dibSize < 40) return null;
+  const width = hv.getInt32(18, true);
+  const height = hv.getInt32(22, true);
+  const bpp = hv.getUint16(28, true);
+  const compression = hv.getUint32(30, true);
+  if (bpp !== 8 || compression !== 0) return null;
+
+  const paletteOffset = 14 + dibSize;
+  if (buf.byteLength < paletteOffset + 256*4) return null;
+  const bytes = new Uint8Array(buf);
+  if (bytes[paletteOffset] !== 0 || bytes[paletteOffset+128*4] !== 128 || bytes[paletteOffset+255*4] !== 255) return null;
+
+  const absHeight = Math.abs(height);
+  const topDown = height < 0;
+  const rowStride = Math.ceil((width * 8) / 32) * 4;
+  const scaleX = width / INPUT_SIZE, scaleY = absHeight / INPUT_SIZE;
+
+  function fileRowFor(y) {
+    const srcY = Math.min(absHeight - 1, y * scaleY | 0);
+    return topDown ? srcY : (absHeight - 1 - srcY);
+  }
+  const yCandidates = [];
+  for (let yy = 0; yy < ROI_H; yy++) { yCandidates.push(fileRowFor(ROI_L.y0 + yy)); yCandidates.push(fileRowFor(ROI_R.y0 + yy)); }
+  const maxRow = Math.max(...yCandidates);
+  const neededEnd = pixelOffset + (maxRow + 1) * rowStride;
+  if (neededEnd > buf.byteLength) return null; // guessed window too small for this file — fall back to canvas, stay correct
+
+  const tRead1 = performance.now();
+
+  function sampleFraction(roi) {
+    let dark = 0;
+    const total = ROI_W * ROI_H;
+    for (let yy = 0; yy < ROI_H; yy++) {
+      const fileRow = fileRowFor(roi.y0 + yy);
+      const rowBase = pixelOffset + fileRow * rowStride;
+      for (let xx = 0; xx < ROI_W; xx++) {
+        const srcX = Math.min(width - 1, (roi.x0 + xx) * scaleX | 0);
+        if (bytes[rowBase + srcX] < DARK_THRESHOLD) dark++;
+      }
+    }
+    return dark / total;
+  }
+
+  const fL = sampleFraction(ROI_L);
+  const fR = sampleFraction(ROI_R);
+  const tRead2 = performance.now();
+  totalReadMs += (tRead1 - tRead0);
+  totalComputeMs += (tRead2 - tRead1);
+  timedCount++;
+  const fraction = Math.min(fL, fR);
+  const side = fL <= fR ? 'L' : 'R';
+  return { fraction, fractionL: fL, fractionR: fR, side, isNG: fraction >= FRACTION_THRESHOLD };
+}
+
+// ---------- FALLBACK PATH: Image decode + Canvas crop (handles PNG/JPG and any BMP the fast path rejected) ----------
+function computeFractionCanvas(img) {
+  const scaleX = img.naturalWidth / INPUT_SIZE;
+  const scaleY = img.naturalHeight / INPUT_SIZE;
+  // left ROI -> left half of scanCanvas
+  sctx.drawImage(img, ROI_L.x0*scaleX, ROI_L.y0*scaleY, ROI_W*scaleX, ROI_H*scaleY, 0, 0, ROI_W, ROI_H);
+  // right ROI -> right half of scanCanvas
+  sctx.drawImage(img, ROI_R.x0*scaleX, ROI_R.y0*scaleY, ROI_W*scaleX, ROI_H*scaleY, ROI_W, 0, ROI_W, ROI_H);
+
+  const { data } = sctx.getImageData(0, 0, ROI_W * 2, ROI_H);
+  const rowStride = ROI_W * 2 * 4;
+  let darkL = 0, darkR = 0;
+  const total = ROI_W * ROI_H;
+  for (let y = 0; y < ROI_H; y++) {
+    const rowBase = y * rowStride;
+    for (let x = 0; x < ROI_W; x++) {
+      const idxL = rowBase + x * 4;
+      const vL = 0.299*data[idxL] + 0.587*data[idxL+1] + 0.114*data[idxL+2];
+      if (vL < DARK_THRESHOLD) darkL++;
+      const idxR = rowBase + (ROI_W + x) * 4;
+      const vR = 0.299*data[idxR] + 0.587*data[idxR+1] + 0.114*data[idxR+2];
+      if (vR < DARK_THRESHOLD) darkR++;
+    }
+  }
+  const fL = darkL / total, fR = darkR / total;
+  const fraction = Math.min(fL, fR);
+  const side = fL <= fR ? 'L' : 'R';
+  return { fraction, fractionL: fL, fractionR: fR, side, isNG: fraction >= FRACTION_THRESHOLD };
+}
+
+// tries the zero-decode byte path first; falls back to Image+Canvas for anything non-standard
+async function computeFractionForFile(file) {
+  const fast = await computeFractionFastBMP(file);
+  if (fast) return fast;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return computeFractionCanvas(img);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function clarityPct(fraction, isNG) {
+  let c = isNG
+    ? (fraction - FRACTION_THRESHOLD) / (1 - FRACTION_THRESHOLD)
+    : (FRACTION_THRESHOLD - fraction) / FRACTION_THRESHOLD;
+  return Math.max(0, Math.min(100, c * 100));
+}
+
+async function loadImageForDisplay(src) {
+  const img = new Image();
+  img.src = src;
+  await img.decode();
+  return img;
+}
+
+// ---------- batch processing: bounded concurrency worker pool ----------
+async function processFiles(rawList) {
+  const normalized = Array.from(rawList).map(entry => {
+    if (entry instanceof File) return { file: entry, relPath: entry.webkitRelativePath || '', name: entry.name };
+    return { file: entry.file, relPath: entry.relPath || '', name: entry.file.name };
+  }).filter(e => /\.(bmp|png|jpe?g)$/i.test(e.name));
+
+  if (!normalized.length) {
+    statusEl.textContent = '⚠️ ไม่พบไฟล์รูปภาพ (.bmp .png .jpg) ในสิ่งที่เลือก';
+    return;
+  }
+
+  progressWrap.classList.add('show');
+  batchPanel.style.display = 'block';
+  grid.innerHTML = '<div class="empty-note">⏳ กำลังประมวลผล กรุณารอสักครู่...</div>';
+
+  const total = normalized.length;
+  let firstNewId = null;
+  let completed = 0;
+  let okCount = 0;
+  totalReadMs = 0; totalComputeMs = 0; timedCount = 0;
+  failedItems = [];
+  const t0 = performance.now();
+
+  async function runOne(entry) {
+    const maxAttempts = 3;
+    let lastErr = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const { fraction, fractionL, fractionR, side, isNG } = await computeFractionForFile(entry.file);
+        const item = { id: nextId++, name: entry.name, relPath: entry.relPath, file: entry.file, fraction, fractionL, fractionR, side, isNG };
+        items.push(item);
+        if (firstNewId === null) firstNewId = item.id;
+        okCount++;
+        lastErr = null;
+        break;
+      } catch (err) {
+        lastErr = err;
+        if (attempt < maxAttempts) {
+          // longer backoff than before — cloud-synced sources (OneDrive/network drives) can take
+          // real seconds to fetch an on-demand file, a 60ms retry gap was never going to help that
+          await new Promise(r => setTimeout(r, 800 * attempt + Math.random() * 400));
+        }
+      }
+    }
+    if (lastErr) {
+      failedItems.push({ name: entry.name, relPath: entry.relPath, error: (lastErr && lastErr.message) || String(lastErr), file: entry.file });
+      console.error('failed to process after', maxAttempts, 'attempts:', entry.name, lastErr);
+    }
+    completed++;
+    if (completed % 15 === 0 || completed === total) {
+      progressText.textContent = `กำลังประมวลผล ${completed} / ${total}`;
+      progressFill.style.width = `${(completed / total) * 100}%`;
+    }
+  }
+
+  let cursor = 0;
+  async function worker() {
+    while (cursor < normalized.length) {
+      const entry = normalized[cursor++];
+      await runOne(entry);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, total) }, worker));
+
+  const elapsedSec = ((performance.now() - t0) / 1000).toFixed(1);
+  const avgRead = timedCount ? (totalReadMs/timedCount).toFixed(1) : '-';
+  const avgCompute = timedCount ? (totalComputeMs/timedCount).toFixed(2) : '-';
+  const failMsg = failedItems.length ? `, ล้มเหลว ${failedItems.length} รูปแม้ retry แล้ว (ดูปุ่ม "ไฟล์ที่ล้มเหลว" ด้านล่าง)` : '';
+  progressText.textContent = `เสร็จแล้ว — ประมวลผลสำเร็จ ${okCount} / ${total} รูป ใน ${elapsedSec} วินาที (concurrency=${CONCURRENCY}, เฉลี่ยอ่านไฟล์ ${avgRead}ms/รูป, คำนวณ ${avgCompute}ms/รูป, fast-path ${timedCount}/${okCount}${failMsg})`;
+  progressFill.style.width = '100%';
+  // no auto-hide here anymore — stays visible so the timing numbers can actually be read;
+  // it gets reset/shown again naturally the next time processFiles() runs.
+
+  renderSummary();
+  renderList();
+  if (selectedId === null && firstNewId !== null) selectItem(firstNewId);
+}
+
+// ---------- selection / detail view ----------
+function selectItem(id) {
+  const prevRow = grid.querySelector('.row.selected');
+  if (prevRow) prevRow.classList.remove('selected');
+  selectedId = id;
+  const newRow = grid.querySelector(`.row[data-id="${id}"]`);
+  if (newRow) newRow.classList.add('selected');
+
+  const item = items.find(it => it.id === id);
+  if (!item) return;
+  detailPanel.style.display = 'block';
+  filenameTag.textContent = '📄 ' + (item.relPath || item.name);
+
+  const isObjectUrl = !!item.file;
+  const src = isObjectUrl ? URL.createObjectURL(item.file) : item.dataUrl;
+  loadImageForDisplay(src).then(img => {
+    ctx.drawImage(img, 0, 0, INPUT_SIZE, INPUT_SIZE);
+    if (isObjectUrl) URL.revokeObjectURL(src);
+    renderPrimaryResult(item);
+    drawROIOverlayAndZoom(item.side);
+    statusEl.textContent = '✅ ผลหลักมาจาก rule-based check (เช็ค 2 ฝั่ง)';
+  });
+}
+
+function renderPrimaryResult(item) {
+  const { fraction, fractionL, fractionR, side, isNG } = item;
+  const label = isNG ? 'NG' : 'OK';
+  const cls = isNG ? 'ng' : 'ok';
+  const pct = (fraction * 100).toFixed(1);
+  const thPct = (FRACTION_THRESHOLD * 100).toFixed(1);
+  const fillLeft = Math.min(98, Math.max(2, fraction * 100));
+  const sideText = isNG ? 'ปิดทั้ง 2 ฝั่ง' : (side === 'L' ? 'เปิดฝั่งซ้าย (ปกติ)' : 'เปิดฝั่งขวา (ชิ้นงานหมุน)');
+  primaryArea.innerHTML = `
+    <div class="primary-card ${cls}">
+      <span class="badge ${cls}">${label}</span>
+      <div class="measured">ค่าที่ใช้ตัดสิน (ฝั่งที่เปิดกว่า): <b>${pct}%</b> (เกณฑ์ตัดสิน ${thPct}%) — ${sideText}</div>
+      <div class="gauge">
+        <div class="gauge-ok-zone" style="width:${thPct}%"></div>
+        <div class="gauge-ng-zone" style="width:${100-thPct}%"></div>
+        <div class="gauge-threshold" style="left:${thPct}%"></div>
+        <div class="gauge-fill" style="left:${fillLeft}%"></div>
+      </div>
+      <div class="gauge-labels"><span>0% (เปิดสนิท)</span><span>100% (ปิดสนิท)</span></div>
+      <div class="side-detail">ซ้าย: ${(fractionL*100).toFixed(1)}% &nbsp;|&nbsp; ขวา: ${(fractionR*100).toFixed(1)}%</div>
+    </div>
+  `;
+}
+
+function drawROIOverlayAndZoom(activeSide) {
+  // draw both candidate ROIs; highlight whichever side was used for the decision
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = activeSide === 'L' ? '#f5a524' : '#f5a52466';
+  ctx.strokeRect(ROI_L.x0 - 3, ROI_L.y0 - 3, ROI_W + 6, ROI_H + 6);
+  ctx.strokeStyle = activeSide === 'R' ? '#f5a524' : '#f5a52466';
+  ctx.strokeRect(ROI_R.x0 - 3, ROI_R.y0 - 3, ROI_W + 6, ROI_H + 6);
+
+  zoomCanvasL.width = ROI_W; zoomCanvasL.height = ROI_H;
+  zctxL.putImageData(ctx.getImageData(ROI_L.x0, ROI_L.y0, ROI_W, ROI_H), 0, 0);
+  zoomCanvasR.width = ROI_W; zoomCanvasR.height = ROI_H;
+  zctxR.putImageData(ctx.getImageData(ROI_R.x0, ROI_R.y0, ROI_W, ROI_H), 0, 0);
+
+  zoomCanvasL.parentElement.classList.toggle('active-zoom', activeSide === 'L');
+  zoomCanvasR.parentElement.classList.toggle('active-zoom', activeSide === 'R');
+}
+
+// ---------- list rendering (sorted NG-first) ----------
+function getFilteredSorted() {
+  let list = items;
+  if (filterMode === 'ng') list = list.filter(it => it.isNG);
+  else if (filterMode === 'ok') list = list.filter(it => !it.isNG);
+  if (folderFilter) list = list.filter(it => (it.relPath || '').split('/')[0] === folderFilter);
+  if (searchTerm) {
+    const q = searchTerm.toLowerCase();
+    list = list.filter(it => it.name.toLowerCase().includes(q));
+  }
+  return list.slice().sort((a, b) => {
+    if (a.isNG !== b.isNG) return a.isNG ? -1 : 1;
+    return clarityPct(b.fraction, b.isNG) - clarityPct(a.fraction, a.isNG);
+  });
+}
+
+function rowHTML(it) {
+  const cls = it.isNG ? 'ng' : 'ok';
+  const label = it.isNG ? 'NG' : 'OK';
+  const clarity = clarityPct(it.fraction, it.isNG).toFixed(0);
+  const dir = it.relPath && it.relPath.includes('/') ? it.relPath.slice(0, it.relPath.lastIndexOf('/')) : '';
+  const sideTag = !it.isNG && it.side === 'R' ? ' <span class="rot-tag" title="ชิ้นงานหมุน — ตรวจพบช่องเปิดฝั่งขวา">⟲R</span>' : '';
+  return `
+    <div class="row ${cls}${it.id === selectedId ? ' selected' : ''}" data-id="${it.id}">
+      <div class="row-icon ${cls}">${label}</div>
+      <div class="row-text">
+        ${dir ? `<div class="row-path">${escapeHtml(dir)}</div>` : ''}
+        <div class="row-name">${escapeHtml(it.name)}${sideTag}</div>
+      </div>
+      <div class="row-right">
+        <span class="badge sm ${cls}">${label} · ${clarity}%</span>
+        <div class="row-bar-track"><div class="row-bar-fill ${cls}" style="width:${clarity}%"></div></div>
+      </div>
+    </div>`;
+}
+
+function renderList() {
+  const list = getFilteredSorted();
+  if (!list.length) {
+    grid.innerHTML = '<div class="empty-note">ไม่พบรายการที่ตรงเงื่อนไข</div>';
+    return;
+  }
+  grid.innerHTML = list.map(rowHTML).join('');
+}
+
+grid.addEventListener('click', (e) => {
+  const row = e.target.closest('.row');
+  if (!row) return;
+  selectItem(parseInt(row.dataset.id, 10));
+});
+
+// ---------- summary bar: filter chips, folder dropdown, search, export ----------
+function renderSummary() {
+  const total = items.length;
+  const ngCount = items.filter(it => it.isNG).length;
+  const okCount = total - ngCount;
+  const failBtn = failedItems.length
+    ? `<button class="small-btn fail-btn" id="failedBtn">⚠️ ไฟล์ที่ล้มเหลว (${failedItems.length})</button>`
+    : '';
+
+  summaryBar.innerHTML = `
+    <div class="chip${filterMode === '' ? ' active' : ''}" data-mode="">ทั้งหมด <b>${total}</b></div>
+    <div class="chip ng${filterMode === 'ng' ? ' active' : ''}" data-mode="ng">🚫 NG <b>${ngCount}</b></div>
+    <div class="chip ok${filterMode === 'ok' ? ' active' : ''}" data-mode="ok">✅ OK <b>${okCount}</b></div>
+    <select class="small-select" id="folderSelect"><option value="">ทุกโฟลเดอร์</option></select>
+    <input type="text" class="search-input" id="searchInput" placeholder="ค้นหาชื่อไฟล์..." value="${escapeHtml(searchTerm)}">
+    <div class="summary-actions">
+      ${failBtn}
+      <button class="small-btn" id="exportBtn">⬇ Export CSV</button>
+      <button class="small-btn" id="clearBtn">🗑 ล้างทั้งหมด</button>
+    </div>
+  `;
+
+  const folders = new Set();
+  items.forEach(it => { if (it.relPath && it.relPath.includes('/')) folders.add(it.relPath.split('/')[0]); });
+  const folderSelect = document.getElementById('folderSelect');
+  Array.from(folders).sort().forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f; opt.textContent = f;
+    if (f === folderFilter) opt.selected = true;
+    folderSelect.appendChild(opt);
+  });
+
+  summaryBar.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => { filterMode = chip.dataset.mode; renderSummary(); renderList(); });
+  });
+  folderSelect.addEventListener('change', (e) => { folderFilter = e.target.value; renderList(); });
+  const failedBtnEl = document.getElementById('failedBtn');
+  if (failedBtnEl) failedBtnEl.addEventListener('click', showFailedModal);
+  let searchDebounce;
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    clearTimeout(searchDebounce);
+    const val = e.target.value;
+    searchDebounce = setTimeout(() => { searchTerm = val; renderList(); }, 200);
+  });
+  document.getElementById('exportBtn').addEventListener('click', exportCSV);
+  document.getElementById('clearBtn').addEventListener('click', clearAll);
+}
+
+function showFailedModal() {
+  const counts = {};
+  failedItems.forEach(f => { counts[f.error] = (counts[f.error] || 0) + 1; });
+  const summaryRows = Object.entries(counts).sort((a, b) => b[1] - a[1])
+    .map(([err, count]) => `<div class="fail-summary-row"><span>${escapeHtml(err)}</span><b>${count}</b></div>`).join('');
+
+  const SHOW_LIMIT = 500;
+  const listRows = failedItems.slice(0, SHOW_LIMIT).map(f =>
+    `<div class="fail-row"><span class="fail-name">${escapeHtml(f.relPath || f.name)}</span><span class="fail-err">${escapeHtml(f.error)}</span></div>`
+  ).join('');
+  const moreNote = failedItems.length > SHOW_LIMIT
+    ? `<div class="empty-note">...และอีก ${failedItems.length - SHOW_LIMIT} รายการ (ดูทั้งหมดได้จาก Export ด้านล่าง)</div>` : '';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <div class="modal-header">
+        <span>⚠️ ไฟล์ที่ล้มเหลวแม้ retry แล้ว (${failedItems.length})</span>
+        <button class="small-btn" id="closeFailedModal">ปิด</button>
+      </div>
+      <div class="fail-summary">${summaryRows || '<div class="empty-note">ไม่มีข้อมูล</div>'}</div>
+      <div class="fail-list">${listRows}${moreNote}</div>
+      <div class="modal-footer">
+        <button class="small-btn" id="retryFailedBtn">🔄 ลองใหม่เฉพาะไฟล์ที่ล้มเหลว (${failedItems.length})</button>
+        <button class="small-btn" id="exportFailedBtn">⬇ Export รายการที่ล้มเหลวทั้งหมด (CSV)</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('closeFailedModal').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('exportFailedBtn').addEventListener('click', exportFailedCSV);
+  document.getElementById('retryFailedBtn').addEventListener('click', () => { overlay.remove(); retryFailed(); });
+}
+
+function retryFailed() {
+  const toRetry = failedItems.map(f => ({ file: f.file, relPath: f.relPath }));
+  if (!toRetry.length) return;
+  processFiles(toRetry);
+}
+
+function exportFailedCSV() {
+  let csv = 'path,filename,error\n';
+  failedItems.forEach(f => {
+    csv += `"${f.relPath || ''}","${f.name}","${(f.error || '').replace(/"/g, '""')}"\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'failed_files.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportCSV() {
+  let csv = 'path,filename,result,used_fraction_pct,side,left_pct,right_pct,clarity_pct\n';
+  const sorted = items.slice().sort((a, b) => {
+    if (a.isNG !== b.isNG) return a.isNG ? -1 : 1;
+    return clarityPct(b.fraction, b.isNG) - clarityPct(a.fraction, a.isNG);
+  });
+  sorted.forEach(it => {
+    const sideLabel = it.isNG ? 'both' : (it.side === 'L' ? 'left' : 'right');
+    csv += `"${it.relPath || ''}","${it.name}",${it.isNG ? 'NG' : 'OK'},${(it.fraction*100).toFixed(2)},${sideLabel},${(it.fractionL*100).toFixed(2)},${(it.fractionR*100).toFixed(2)},${clarityPct(it.fraction,it.isNG).toFixed(1)}\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'ok_ng_results.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function clearAll() {
+  items = [];
+  failedItems = [];
+  selectedId = null;
+  filterMode = ''; folderFilter = ''; searchTerm = '';
+  grid.innerHTML = '';
+  batchPanel.style.display = 'none';
+  detailPanel.style.display = 'none';
+}
+
+// ---------- folder drag & drop support (tracks relative path manually) ----------
+async function readEntryFiles(entry, out, basePath) {
+  const path = basePath ? basePath + '/' + entry.name : entry.name;
+  if (entry.isFile) {
+    await new Promise(resolve => {
+      entry.file(file => { out.push({ file, relPath: path }); resolve(); }, () => resolve());
+    });
+  } else if (entry.isDirectory) {
+    const reader = entry.createReader();
+    const readAll = () => new Promise(resolve => {
+      reader.readEntries(async (entries) => {
+        if (!entries.length) { resolve(); return; }
+        for (const e of entries) await readEntryFiles(e, out, path);
+        await readAll().then(resolve);
+      }, () => resolve());
+    });
+    await readAll();
+  }
+}
+
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  drop.classList.remove('drag');
+  const dtItems = e.dataTransfer.items;
+  if (dtItems && dtItems.length && dtItems[0].webkitGetAsEntry) {
+    const out = [];
+    const entries = Array.from(dtItems).map(it => it.webkitGetAsEntry()).filter(Boolean);
+    for (const entry of entries) await readEntryFiles(entry, out, '');
+    if (out.length) { processFiles(out); return; }
+  }
+  processFiles(e.dataTransfer.files);
+});
+
+btnFiles.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+// recursively collect {file, relPath} entries from a File System Access API directory handle
+async function collectFromDirHandle(dirHandle, basePath, out) {
+  for await (const [name, handle] of dirHandle.entries()) {
+    const path = basePath ? basePath + '/' + name : name;
+    if (handle.kind === 'file') {
+      try { out.push({ file: await handle.getFile(), relPath: path }); } catch (err) { console.warn('skip file', path, err); }
+    } else if (handle.kind === 'directory') {
+      await collectFromDirHandle(handle, path, out);
+    }
+  }
+}
+
+btnFolder.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  // Prefer the modern File System Access API: it shows an explicit "Select Folder" dialog
+  // instead of a generic file-Open dialog, which is what caused the confusing "Open just
+  // navigates into the folder" behavior with the legacy webkitdirectory input below.
+  if (window.showDirectoryPicker) {
+    try {
+      const dirHandle = await window.showDirectoryPicker();
+      const collected = [];
+      await collectFromDirHandle(dirHandle, dirHandle.name || '', collected);
+      if (collected.length) { processFiles(collected); return; }
+      statusEl.textContent = '⚠️ ไม่พบไฟล์ในโฟลเดอร์ที่เลือก';
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return; // user cancelled — do nothing, don't fall back
+      console.warn('showDirectoryPicker unavailable/failed, falling back to legacy folder input', err);
+      // fall through to legacy input
+    }
+  }
+  folderInput.click();
+});
+fileInput.addEventListener('change', (e) => { if (e.target.files.length) processFiles(e.target.files); e.target.value = ''; });
+folderInput.addEventListener('change', (e) => { if (e.target.files.length) processFiles(e.target.files); e.target.value = ''; });
+
+ctx.fillStyle = '#000';
+ctx.fillRect(0, 0, INPUT_SIZE, INPUT_SIZE);
+</script>
+</body>
+</html>
